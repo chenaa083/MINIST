@@ -134,11 +134,11 @@ torch.save(cnn.state_dict(), 'cnn2.pkl')  # 保存模型
 cnn.load_state_dict(torch.load('cnn2.pkl'))
 cnn.eval()
 # print 10 predictions from test data
-inputs = test_x[:10]  # 测试32个数据
+inputs = test_x[:30]  # 测试32个数据
 test_output = cnn(inputs)
 pred_y = torch.max(test_output, 1)[1].data.numpy()
 print(pred_y, 'prediction number')  # 打印识别后的数字
-print(test_y[:10].numpy(), 'real number')
+print(test_y[:30].numpy(), 'real number')
 
 img = torchvision.utils.make_grid(inputs)
 img = img.numpy().transpose(1, 2, 0)
