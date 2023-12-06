@@ -1,6 +1,4 @@
 # 训练+测试
-
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -21,13 +19,13 @@ momentum = 0.5
 DOWNLOAD_MNIST = True  # 表示还没有下载数据集，如果数据集下载好了就写False
 log_interval = 10
 
-# 下载mnist手写数据集
+# 下载MNIST手写数据集
 train_data = torchvision.datasets.MNIST(
     root='./data/',  # 保存或提取的位置  会放在当前文件夹中
     train=True,  # true说明是用于训练的数据，false说明是用于测试的数据
     transform=torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),  # 转换PIL.Image or numpy.ndarray
-        torchvision.transforms.Normalize((0.1301,), 0.3088),  # 设置 minist 数据集全局平均值和标准偏差。
+        torchvision.transforms.Normalize((0.1301,), 0.3088),  # 设置 MNIST 数据集全局平均值和标准偏差。
     ]),
     download=DOWNLOAD_MNIST,  # 已经下载了就不需要下载了
 )
@@ -37,54 +35,44 @@ test_data = torchvision.datasets.MNIST(
     train=False,  # 表明是测试集
     transform=torchvision.transforms.Compose([
             torchvision.transforms.ToTensor(),  # 转换PIL.Image or numpy.ndarray
-            torchvision.transforms.Normalize((0.1301,), 0.3088),  # 设置 minist 数据集全局平均值和标准偏差。
+            torchvision.transforms.Normalize((0.1301,), 0.3088),  # 设置 MNIST 数据集全局平均值和标准偏差。
         ]),
     download=DOWNLOAD_MNIST,  # 已经下载了就不需要下载了
 )
-# 批训练 50个samples， 1  channel，28x28 (50,1,28,28)
-# Torch中的DataLoader是用来包装数据的工具，它能帮我们有效迭代数据，这样就可以进行批训练
+
+# DataLoader用来包装数据，它能有效迭代数据，这样就可以进行批训练
 train_loader = Data.DataLoader(
     dataset=train_data,
-    batch_size=batch_size_train,
-    shuffle=True  # 是否打乱数据，一般都打乱
+    batch_size=batch_size_train,  # 批处理大小为50
+    shuffle=True  # 打乱数据
 )
 test_loader = Data.DataLoader(
     dataset=test_data,
-    batch_size=batch_size_test,
-    shuffle=True  # 是否打乱数据，一般都打乱
+    batch_size=batch_size_test,  # 批处理大小为1000
+    shuffle=True  # 打乱数据
 )
-examples = enumerate(test_loader)
-batch_idx, (example_data, example_targets) = next(examples)
 
-fig = plt.figure()
-for i in range(6):
-    plt.subplot(2, 3, i + 1)
-    plt.tight_layout()
-    plt.imshow(example_data[i][0], cmap='gray', interpolation='none')
-    plt.title("Ground Truth: {}".format(example_targets[i]))
-    plt.xticks([])
-    plt.yticks([])
-plt.show()
+
 # 用class类来建立CNN模型
 # CNN流程：卷积(Conv2d)-> 激励函数(ReLU)->池化(MaxPooling)->
 #        卷积(Conv2d)-> 激励函数(ReLU)->池化(MaxPooling)->
 #        展平多维的卷积成的特征图->接入全连接层(Linear)->输出
 
 
-class CNN(nn.Module):  # 我们建立的CNN继承nn.Module这个模块
+class CNN(nn.Module):  # 新建CNN继承nn.Module这个模块
     def __init__(self):
         super(CNN, self).__init__()
         # 建立第一个卷积(Conv2d)-> 激励函数(ReLU)->池化(MaxPooling)
         self.conv1 = nn.Sequential(
             # 第一个卷积con2d
             nn.Conv2d(  # 输入图像大小(1,28,28)
-                in_channels=1,  # 输入图片的高度，因为minist数据集是灰度图像只有一个通道
+                in_channels=1,  # MNIST数据集是灰度图像只有一个通道
                 out_channels=16,  # n_filters 卷积核的高度
                 kernel_size=5,  # filter size 卷积核的大小 也就是长x宽=5x5
                 stride=1,  # 步长
                 padding=2,  # 想要con2d输出的图片长宽不变，就进行补零操作 padding = (kernel_size-1)/2
             ),  # 输出图像大小(16,28,28)
-            # 激活函数
+            # 激活函数Relu
             nn.ReLU(),
             # 池化，下采样
             nn.MaxPool2d(kernel_size=2),  # 在2x2空间下采样
@@ -108,7 +96,7 @@ class CNN(nn.Module):  # 我们建立的CNN继承nn.Module这个模块
         self.conv2_drop = nn.Dropout2d()  # 正则化技术，在训练期间随机丢弃（将值设置为零）神经网络中的一些节点（或神经元），以防止过拟合。
         # 建立全卷积连接层
         self.out1 = nn.Linear(32 * 7 * 7, 50)
-        self.out2 = nn.Linear(50,10)  # 输出是10个类
+        self.out2 = nn.Linear(50, 10)  # 输出是10个类
 
     # 下面定义x的传播路线
     def forward(self, x):
@@ -125,44 +113,46 @@ class CNN(nn.Module):  # 我们建立的CNN继承nn.Module这个模块
 
 # 初始化网络和优化器
 cnn = CNN()
-optimizer = torch.optim.SGD(cnn.parameters(), lr=learn_rate,momentum=momentum)
+optimizer = torch.optim.SGD(cnn.parameters(), lr=learn_rate, momentum=momentum)  # 选用SGD优化器，其中学习率为0.01，动量为0.5
 
+# 创建3个列表用于存储损失值，其中train_counter，test_counter为迭代次数
 train_losses = []
 train_counter = []
 test_losses = []
 test_counter = [i*len(train_loader.dataset) for i in range(the_epochs + 1)]
-# 训练
-# 把x和y 都放入Variable中，然后放入cnn中计算output，最后再计算误差
+
+# 测试和训练
 
 
-def train(epoch):
+def train_model(epoch1):
     cnn.train()
-    for batch_idx, (data, target) in enumerate(train_loader):
+    # 将其索引保存在 batch_idx1 中，将输入数据保存在 data 中，将对应的目标标签保存在 target 中
+    for batch_idx1, (data, target) in enumerate(train_loader):
         optimizer.zero_grad()
-        output = cnn(data)
-        loss = F.nll_loss(output, target)
+        output1 = cnn(data)
+        loss = F.nll_loss(output1, target)
         loss.backward()
         optimizer.step()
-        if batch_idx % log_interval == 0:
+        if batch_idx1 % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item()))
+                epoch1, batch_idx1 * len(data), len(train_loader.dataset),
+                100. * batch_idx1 / len(train_loader), loss.item()))
             train_losses.append(loss.item())
             train_counter.append(
-                (batch_idx*64) + ((epoch-1)*len(train_loader.dataset)))
+                (batch_idx1*64) + ((epoch1-1)*len(train_loader.dataset)))
             torch.save(cnn.state_dict(), './model.pth')
             torch.save(optimizer.state_dict(), './optimizer.pth')
 
 
-def test():
+def test_model():
     cnn.eval()
     test_loss = 0
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
-            output = cnn(data)
-            test_loss += F.nll_loss(output, target, reduction='sum').item()
-            pred = output.data.max(1, keepdim=True)[1]
+            output2 = cnn(data)
+            test_loss += F.nll_loss(output2, target, reduction='sum').item()
+            pred = output2.data.max(1, keepdim=True)[1]
             correct += pred.eq(target.data.view_as(pred)).sum()
     test_loss /= len(test_loader.dataset)
     test_losses.append(test_loss)
@@ -171,10 +161,10 @@ def test():
         100. * correct / len(test_loader.dataset)))
 
 
-test()
-for epoch in range(1, the_epochs + 1):
-    train(epoch)
-    test()
+test_model()
+for epoch2 in range(1, the_epochs + 1):
+    train_model(epoch2)
+    test_model()
 
 fig = plt.figure()
 plt.plot(train_counter, train_losses, color='blue')
@@ -183,19 +173,6 @@ plt.legend(['Train Loss', 'Test Loss'], loc='upper right')
 plt.xlabel('number of training examples seen')
 plt.ylabel('negative log likelihood loss')
 
-examples = enumerate(test_loader)
-batch_idx, (example_data, example_targets) = next(examples)
-with torch.no_grad():
-    output = cnn(example_data)
-fig = plt.figure()
-for i in range(6):
-    plt.subplot(2, 3, i + 1)
-    plt.tight_layout()
-    plt.imshow(example_data[i][0], cmap='gray', interpolation='none')
-    plt.title("Prediction: {}".format(output.data.max(1, keepdim=True)[1][i].item()))
-    plt.xticks([])
-    plt.yticks([])
-plt.show()
 
 continued_network = CNN()
 continued_optimizer = torch.optim.SGD(cnn.parameters(), lr=learn_rate, momentum=momentum)
@@ -205,13 +182,10 @@ continued_network.load_state_dict(network_state_dict)
 optimizer_state_dict = torch.load('optimizer.pth')
 continued_optimizer.load_state_dict(optimizer_state_dict)
 
-# 注意不要注释前面的“for epoch in range(1, n_epochs + 1):”部分，
-# 不然报错：x and y must be the same size
-# 为什么是“4”开始呢，因为n_epochs=3，上面用了[1, n_epochs + 1)
 for i in range(4, 9):
     test_counter.append(i * len(train_loader.dataset))
-    train(i)
-    test()
+    train_model(i)
+    test_model()
 
 fig = plt.figure()
 plt.plot(train_counter, train_losses, color='blue')
