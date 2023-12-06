@@ -3,10 +3,11 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.utils.data as Data
 import torchvision
 import cv2
-
+import matplotlib.pyplot as plt
 # import os
 
 torch.manual_seed(1)  # 使用随机化种子使神经网络的初始化每次都相同
@@ -16,8 +17,9 @@ the_epochs = 3  # 训练整批数据的次数
 batch_size_train = 50  # 训练集批处理大小为50
 batch_size_test = 1000  # 测试集批处理大小为1000
 learn_rate = 0.01  # 学习率为0.01
-# momentum = 0.5 待用
+momentum = 0.5
 DOWNLOAD_MNIST = True  # 表示还没有下载数据集，如果数据集下载好了就写False
+log_interval = 10
 
 # 下载mnist手写数据集
 train_data = torchvision.datasets.MNIST(
@@ -51,7 +53,18 @@ test_loader = Data.DataLoader(
     batch_size=batch_size_test,
     shuffle=True  # 是否打乱数据，一般都打乱
 )
+examples = enumerate(test_loader)
+batch_idx, (example_data, example_targets) = next(examples)
 
+fig = plt.figure()
+for i in range(6):
+    plt.subplot(2, 3, i + 1)
+    plt.tight_layout()
+    plt.imshow(example_data[i][0], cmap='gray', interpolation='none')
+    plt.title("Ground Truth: {}".format(example_targets[i]))
+    plt.xticks([])
+    plt.yticks([])
+plt.show()
 # 用class类来建立CNN模型
 # CNN流程：卷积(Conv2d)-> 激励函数(ReLU)->池化(MaxPooling)->
 #        卷积(Conv2d)-> 激励函数(ReLU)->池化(MaxPooling)->
@@ -107,13 +120,13 @@ class CNN(nn.Module):  # 我们建立的CNN继承nn.Module这个模块
         x = x.view(x.size(0), -1)  # 将张量 x 进行形状变换
         x = self.out1(x)
         x = self.out2(x)
-        return x
+        return F.log_softmax(x, dim=1)
 
 
 # 初始化网络和优化器
 cnn = CNN()
-# 优化器选择Adam
-optimizer = torch.optim.Adam(cnn.parameters(), lr=learn_rate)
+optimizer = torch.optim.SGD(cnn.parameters(), lr=learn_rate,momentum=momentum)
+
 train_losses = []
 train_counter = []
 test_losses = []
@@ -122,50 +135,88 @@ test_counter = [i*len(train_loader.dataset) for i in range(the_epochs + 1)]
 # 把x和y 都放入Variable中，然后放入cnn中计算output，最后再计算误差
 
 
-def train(EPOCH):
+def train(epoch):
+    cnn.train()
+    for batch_idx, (data, target) in enumerate(train_loader):
+        optimizer.zero_grad()
+        output = cnn(data)
+        loss = F.nll_loss(output, target)
+        loss.backward()
+        optimizer.step()
+        if batch_idx % log_interval == 0:
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+                epoch, batch_idx * len(data), len(train_loader.dataset),
+                100. * batch_idx / len(train_loader), loss.item()))
+            train_losses.append(loss.item())
+            train_counter.append(
+                (batch_idx*64) + ((epoch-1)*len(train_loader.dataset)))
+            torch.save(cnn.state_dict(), './model.pth')
+            torch.save(optimizer.state_dict(), './optimizer.pth')
 
-    cnn.train() # 和dropout层联用
-    # 损失函数
-    loss_func = nn.CrossEntropyLoss()  # 目标标签是one-hotted
-    for epoch in range(EPOCH):
-        for step, (b_x, b_y) in enumerate(train_loader):
-            output = cnn(b_x)
-            loss = loss_func(output, b_y)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-            if step % 50 == 0:
-                test_output = cnn(test_x)
-                pred_y = torch.max(test_output, 1)[1].data.numpy()
-                accuracy = float((pred_y == test_y.data.numpy()).astype(int).sum()) / float(test_y.size(0))
-                print('Epoch: ', epoch, '| train loss: %.4f' % loss.data.numpy(), '| test accuracy: %.2f' % accuracy)
-
-                torch.save(cnn.state_dict(), 'my_model.pth')  # 保存模型
-
-
-train(1)
 
 def test():
     cnn.eval()
-    test_loss =0
+    test_loss = 0
     correct = 0
-# 加载模型，调用时需将前面训练及保存模型的代码注释掉，否则会再训练一遍
-#cnn.load_state_dict(torch.load('my_model.pth'))
+    with torch.no_grad():
+        for data, target in test_loader:
+            output = cnn(data)
+            test_loss += F.nll_loss(output, target, reduction='sum').item()
+            pred = output.data.max(1, keepdim=True)[1]
+            correct += pred.eq(target.data.view_as(pred)).sum()
+    test_loss /= len(test_loader.dataset)
+    test_losses.append(test_loss)
+    print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
 
-# print 10 predictions from test data
-inputs = test_x[:30]  # 测试32个数据
-test_output = cnn(inputs)
-pred_y = torch.max(test_output, 1)[1].data.numpy()
-print(pred_y, 'prediction number')  # 打印识别后的数字
-print(test_y[:30].numpy(), 'real number')
 
-img = torchvision.utils.make_grid(inputs)
-img = img.numpy().transpose(1, 2, 0)
+test()
+for epoch in range(1, the_epochs + 1):
+    train(epoch)
+    test()
 
-# 下面三行为改变图片的亮度
-std = [0.5, 0.5, 0.5]
-mean = [0.5, 0.5, 0.5]
-img = img * std + mean
-cv2.imshow('win', img)  # opencv显示需要识别的数据图片
-key_pressed = cv2.waitKey(0)
+fig = plt.figure()
+plt.plot(train_counter, train_losses, color='blue')
+plt.scatter(test_counter, test_losses, color='red')
+plt.legend(['Train Loss', 'Test Loss'], loc='upper right')
+plt.xlabel('number of training examples seen')
+plt.ylabel('negative log likelihood loss')
+
+examples = enumerate(test_loader)
+batch_idx, (example_data, example_targets) = next(examples)
+with torch.no_grad():
+    output = cnn(example_data)
+fig = plt.figure()
+for i in range(6):
+    plt.subplot(2, 3, i + 1)
+    plt.tight_layout()
+    plt.imshow(example_data[i][0], cmap='gray', interpolation='none')
+    plt.title("Prediction: {}".format(output.data.max(1, keepdim=True)[1][i].item()))
+    plt.xticks([])
+    plt.yticks([])
+plt.show()
+
+continued_network = CNN()
+continued_optimizer = torch.optim.SGD(cnn.parameters(), lr=learn_rate, momentum=momentum)
+
+network_state_dict = torch.load('model.pth')
+continued_network.load_state_dict(network_state_dict)
+optimizer_state_dict = torch.load('optimizer.pth')
+continued_optimizer.load_state_dict(optimizer_state_dict)
+
+# 注意不要注释前面的“for epoch in range(1, n_epochs + 1):”部分，
+# 不然报错：x and y must be the same size
+# 为什么是“4”开始呢，因为n_epochs=3，上面用了[1, n_epochs + 1)
+for i in range(4, 9):
+    test_counter.append(i * len(train_loader.dataset))
+    train(i)
+    test()
+
+fig = plt.figure()
+plt.plot(train_counter, train_losses, color='blue')
+plt.scatter(test_counter, test_losses, color='red')
+plt.legend(['Train Loss', 'Test Loss'], loc='upper right')
+plt.xlabel('number of training examples seen')
+plt.ylabel('negative log likelihood loss')
+plt.show()
