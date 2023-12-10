@@ -4,9 +4,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.data as Data
 import torchvision
-import cv2
 import matplotlib.pyplot as plt
-# import os
+
 
 torch.manual_seed(1)  # 使用随机化种子使神经网络的初始化每次都相同
 
