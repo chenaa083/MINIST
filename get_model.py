@@ -6,11 +6,16 @@ import torch.utils.data as Data
 import torchvision
 import matplotlib.pyplot as plt
 
+# 用GPU训练
+device = torch.device("cuda:0")
+
+model_path = './model.pth'
+optimizer_path = './optimizer.pth'
 
 torch.manual_seed(1)  # 使用随机化种子使神经网络的初始化每次都相同
 
 # 超参数
-the_epochs = 3  # 训练整批数据的次数
+the_epochs = 7  # 训练整批数据的次数
 batch_size_train = 50  # 训练集批处理大小为50
 batch_size_test = 1000  # 测试集批处理大小为1000
 learn_rate = 0.01  # 学习率为0.01
@@ -112,6 +117,8 @@ class CNN(nn.Module):  # 新建CNN继承nn.Module这个模块
 
 # 初始化网络和优化器
 cnn = CNN()
+cnn = cnn.to(device)
+# 优化器
 optimizer = torch.optim.SGD(cnn.parameters(), lr=learn_rate, momentum=momentum)  # 选用SGD优化器，其中学习率为0.01，动量为0.5
 
 # 创建3个列表用于存储损失值，其中train_counter，test_counter为迭代次数
@@ -127,6 +134,8 @@ def train_model(epoch1):
     cnn.train()
     # 将其索引保存在 batch_idx1 中，将输入数据保存在 data 中，将对应的目标标签保存在 target 中
     for batch_idx1, (data, target) in enumerate(train_loader):
+        # 将输入数据和目标数据移动到GPU上
+        data, target = data.to(device), target.to(device)
         optimizer.zero_grad()
         output1 = cnn(data)
         loss = F.nll_loss(output1, target)
@@ -149,13 +158,14 @@ def test_model():
     correct = 0
     with torch.no_grad():
         for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
             output2 = cnn(data)
             test_loss += F.nll_loss(output2, target, reduction='sum').item()
             pred = output2.data.max(1, keepdim=True)[1]
             correct += pred.eq(target.data.view_as(pred)).sum()
     test_loss /= len(test_loader.dataset)
     test_losses.append(test_loss)
-    print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.2f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
@@ -171,25 +181,5 @@ plt.scatter(test_counter, test_losses, color='red')
 plt.legend(['Train Loss', 'Test Loss'], loc='upper right')
 plt.xlabel('number of training examples seen')
 plt.ylabel('negative log likelihood loss')
-
-
-continued_network = CNN()
-continued_optimizer = torch.optim.SGD(cnn.parameters(), lr=learn_rate, momentum=momentum)
-
-network_state_dict = torch.load('model.pth')
-continued_network.load_state_dict(network_state_dict)
-optimizer_state_dict = torch.load('optimizer.pth')
-continued_optimizer.load_state_dict(optimizer_state_dict)
-
-for i in range(4, 9):
-    test_counter.append(i * len(train_loader.dataset))
-    train_model(i)
-    test_model()
-
-fig = plt.figure()
-plt.plot(train_counter, train_losses, color='blue')
-plt.scatter(test_counter, test_losses, color='red')
-plt.legend(['Train Loss', 'Test Loss'], loc='upper right')
-plt.xlabel('number of training examples seen')
-plt.ylabel('negative log likelihood loss')
 plt.show()
+
