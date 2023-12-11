@@ -9,10 +9,8 @@ import matplotlib.pyplot as plt
 # 用GPU训练
 device = torch.device("cuda:0")
 
-model_path = './model.pth'
-optimizer_path = './optimizer.pth'
-
-torch.manual_seed(1)  # 使用随机化种子使神经网络的初始化每次都相同
+# 使用随机化种子使神经网络的初始化每次都相同
+torch.manual_seed(1)
 
 # 超参数
 the_epochs = 7  # 训练整批数据的次数
@@ -118,6 +116,7 @@ class CNN(nn.Module):  # 新建CNN继承nn.Module这个模块
 # 初始化网络和优化器
 cnn = CNN()
 cnn = cnn.to(device)
+
 # 优化器
 optimizer = torch.optim.SGD(cnn.parameters(), lr=learn_rate, momentum=momentum)  # 选用SGD优化器，其中学习率为0.01，动量为0.5
 
@@ -183,4 +182,5 @@ if __name__ == '__main__':
     plt.xlabel('number of training examples seen')
     plt.ylabel('negative log likelihood loss')
     plt.show()
+
 
