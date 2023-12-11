@@ -1,2 +1,2 @@
-# MINIST
-pytorch+MINIST实现手写数字识别
+# MNIST
+pytorch+MNIST实现手写数字识别
