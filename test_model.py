@@ -5,19 +5,16 @@ import matplotlib.pyplot as plt
 
 # 加载已经训练好的模型
 model = get_model.CNN()
-model.eval()
-
-# 加载模型参数
 model_path = 'model.pth'
-optimizer_path = 'optimizer.pth'
 model_state_dict = torch.load(model_path)
 model.load_state_dict(model_state_dict)
-optimizer = torch.optim.SGD(model.parameters(), lr=0.01)  # 使用相同的优化器类型，你可以根据你的需要进行修改
-optimizer_state_dict = torch.load(optimizer_path)
-optimizer.load_state_dict(optimizer_state_dict)
-# 测试模型
-num_samples = 5
 
+# 测试模型
+num_samples = 15
+num_rows = 3
+num_cols = num_samples//num_rows
+
+model.eval()
 with torch.no_grad():
     for i in range(num_samples):
         # 随机选择一个测试样本
@@ -30,8 +27,10 @@ with torch.no_grad():
         predicted_label = torch.argmax(output).item()
 
         # 可视化测试结果
-        plt.subplot(1, num_samples, i + 1)
+        plt.subplot(num_rows, num_cols, i + 1)
         plt.imshow(test_image.squeeze().numpy(), cmap='gray')
         plt.title(f'True: {true_label}\nPredicted: {predicted_label}')
         plt.axis('off')
 plt.show()
+
+

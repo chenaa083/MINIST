@@ -170,16 +170,17 @@ def test_model():
         100. * correct / len(test_loader.dataset)))
 
 
-test_model()
-for epoch2 in range(1, the_epochs + 1):
-    train_model(epoch2)
+if __name__ == '__main__':
     test_model()
+    for epoch2 in range(1, the_epochs + 1):
+        train_model(epoch2)
+        test_model()
 
-fig = plt.figure()
-plt.plot(train_counter, train_losses, color='blue')
-plt.scatter(test_counter, test_losses, color='red')
-plt.legend(['Train Loss', 'Test Loss'], loc='upper right')
-plt.xlabel('number of training examples seen')
-plt.ylabel('negative log likelihood loss')
-plt.show()
+    fig = plt.figure()
+    plt.plot(train_counter, train_losses, color='blue')
+    plt.scatter(test_counter, test_losses, color='red')
+    plt.legend(['Train Loss', 'Test Loss'], loc='upper right')
+    plt.xlabel('number of training examples seen')
+    plt.ylabel('negative log likelihood loss')
+    plt.show()
 
